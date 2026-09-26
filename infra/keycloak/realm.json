@@ -1,0 +1,217 @@
+{
+  "realm": "cab-access",
+  "enabled": true,
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "PLATFORM_ADMIN"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "cab-demo",
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false,
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "cab-api",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "platform",
+      "username": "platform",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "platform",
+      "email": "platform@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PLATFORM_ADMIN"
+      ]
+    },
+    {
+      "id": "admin",
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "admin",
+      "email": "admin@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "reviewer",
+      "username": "reviewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "reviewer",
+      "email": "reviewer@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "operator",
+      "username": "operator",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "operator",
+      "email": "operator@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "supervisor",
+      "username": "supervisor",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "supervisor",
+      "email": "supervisor@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "finance",
+      "username": "finance",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "finance",
+      "email": "finance@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "finance2",
+      "username": "finance2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "finance2",
+      "email": "finance2@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "driver",
+      "username": "driver",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "driver",
+      "email": "driver@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "support",
+      "username": "support",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "support",
+      "email": "support@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    },
+    {
+      "id": "outsider",
+      "username": "outsider",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "outsider",
+      "email": "outsider@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": []
+    }
+  ]
+}

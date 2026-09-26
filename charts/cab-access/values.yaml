@@ -1,0 +1,20 @@
+replicaCount: 2
+image:
+  repository: example.invalid/cab-access
+  tag: 0.1.0
+  pullPolicy: IfNotPresent
+existingSecret: cab-access-runtime
+config:
+  OIDC_ISSUER: https://identity.example.invalid/realms/cab-access
+  OIDC_JWKS: https://identity.example.invalid/realms/cab-access/protocol/openid-connect/certs
+  SPRING_FLYWAY_ENABLED: "false"
+  PAYMENT_PROVIDER: razorpay
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits:
+    cpu: "2"
+    memory: 1536Mi
+service:
+  port: 8080

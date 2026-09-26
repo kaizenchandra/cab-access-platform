@@ -1,0 +1,6 @@
+CREATE ROLE cab_owner LOGIN PASSWORD 'local-owner-only' NOSUPERUSER NOBYPASSRLS;
+CREATE ROLE cab_app LOGIN PASSWORD 'local-app-only' NOSUPERUSER NOBYPASSRLS;
+CREATE DATABASE cabaccess OWNER cab_owner;
+\connect cabaccess
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT ALL ON SCHEMA public TO cab_owner;

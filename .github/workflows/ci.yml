@@ -1,0 +1,51 @@
+name: backend
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: ./mvnw -B spotless:check verify
+      - run: docker compose config --quiet
+      - run: docker build -t cab-access:ci .
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.18.6
+      - run: helm lint charts/cab-access && helm template cab-access charts/cab-access > /tmp/cab-access.yaml
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.3
+      - run: terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate && terraform -chdir=infra/terraform fmt -check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification
+          path: target/surefire-reports
+  dependency-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: ./mvnw -B dependency-check:check -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-audit
+          path: target/dependency-check-report.html

@@ -1,0 +1,56 @@
+{
+  "result": "PASS",
+  "run_at": "2026-09-26T20:54:14Z",
+  "synthetic": true,
+  "state": {
+    "tenant": "d6e368ef-a506-4757-bca5-09c9559a4c80",
+    "facility": "f0f7f1e7-d78a-4594-bed6-341813865374",
+    "vehicle": "abcd99d8-c80f-4d2b-85bb-d6db18f9bd31",
+    "version": "ede46656-11b1-4bdd-8d44-4edb99b498ba",
+    "gate": "be44e3fb-9d47-4b28-ad61-ecc67e8fa617",
+    "order": "9a69e92c-a603-4dce-b471-5c6c93ba6361",
+    "subscription": "ce35f87f-2b60-466a-83a6-1b28f8bd496c",
+    "other_tenant": "7ee416f6-4077-477d-a240-db4a404614c2"
+  },
+  "checks": [
+    "OIDC onboarding",
+    "single-use contact verification",
+    "approved vehicle",
+    "immutable plan and quote",
+    "idempotent order",
+    "signed simulated provider callback replay",
+    "one payment and entitlement",
+    "allow decision",
+    "gate dispatch and acknowledgement without visit",
+    "entry/exit matched",
+    "deny decision",
+    "operator override forbidden",
+    "supervisor audited override",
+    "receipt",
+    "support resolution",
+    "maker/checker refund and suspension",
+    "reconciliation queued",
+    "collections and refunds distinct",
+    "notification tracking",
+    "device heartbeat",
+    "authorized export",
+    "cross-tenant read and export rejected"
+  ],
+  "collections": {
+    "net_collections_minor": 123300,
+    "settlement_scope": "MERCHANT_LEVEL_SEPARATE_REPORT",
+    "open_reconciliation_findings": 0,
+    "accounting_basis": "COLLECTIONS_NOT_REVENUE",
+    "currency": "INR",
+    "refunds_minor": 100,
+    "gross_collections_minor": 123400
+  },
+  "operations": {
+    "unmatched_or_ambiguous_visits": 0,
+    "open_exceptions": 0,
+    "estimated_occupancy": 0,
+    "is_estimate": true,
+    "data_quality": "NO_KNOWN_GAPS",
+    "physical_lane_status": "UNKNOWN"
+  }
+}

@@ -1,0 +1,8 @@
+.git
+.idea
+.local
+target
+docs/evidence
+.env
+infra/terraform/.terraform
+infra/terraform/*.tfstate*

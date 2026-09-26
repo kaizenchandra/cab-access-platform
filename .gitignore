@@ -1,0 +1,8 @@
+/target/
+/.env
+/.local/
+*.log
+.DS_Store
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/*.tfplan

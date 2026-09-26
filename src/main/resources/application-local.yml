@@ -1,0 +1,12 @@
+cab:
+  provider: simulator
+  local-delivery: true
+
+management:
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  tracing:
+    export:
+      enabled: false
