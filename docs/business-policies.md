@@ -1,17 +1,44 @@
 # Provisional development policies
 
-None of these are authority-approved production terms. Synthetic pilot: **Example Transit Access Authority**, **Example Junction**, Asia/Kolkata. Subscription prices are synthetic minor-unit amounts, INR only for the MVP, with no tax calculation. Receipts are payment receipts, not tax invoices.
+None of these are authority-approved production terms. Synthetic pilot: **Example Transit Access Authority**, **Example
+Junction**, Asia/Kolkata. Subscription prices are synthetic minor-unit amounts, INR only for the MVP, with no tax
+calculation. Receipts are payment receipts, not tax invoices.
 
-- Authority = tenant. External identity and local tenant membership/profile are separate. Staff memberships can be facility-scoped. Platform administration cannot read tenant movement data without explicit, time-bound tenant support grant.
-- One subscription per registered vehicle/facility; eligible approved vehicle and verified contact required for purchase. No transfers. Unlimited eligible visits in purchased zones. Access fee only; taxes, parking, waiting, premium lanes and overstay excluded unless explicitly published. No promised savings, physical queue improvements or barrier-free admission.
-- Weekly = seven local calendar days; monthly/quarterly/yearly = 1/3/12 local calendar months. Java ZonedDateTime resolves invalid month-end to last valid date, DST gaps forward and overlaps to earlier valid offset when calculating. Store UTC instants. Start inclusive, end exclusive. Clock injected.
-- Payment acceptance time starts initial entitlement unless quoted future start is later. Renewal starts at the later of accepted time, quoted start, or latest entitlement end. Serialize fulfillment on vehicle/facility subscription. Future-start limit 90 days, quote validity 15 minutes. Payment already captured after quote expiry remains recoverable and uses stored purchase terms.
-- Published plan versions and purchased snapshots never change. Retirement prevents new quotes. Existing orders remain valid. Expiry after entry does not create a charge. Suspension requires reason and authorized staff; resumption is explicit and history retained.
-- Refund maker/checker: finance officer requests, another finance officer approves. Reserve requested amounts against payment to prevent concurrent over-refund. Entitlement is suspended only after successful provider refund confirmation, for both partial and full refunds; this conservative treatment requires approval. Failed requests release reservation. Ambiguous provider writes require lookup/reconciliation, never blind resubmission.
-- Local contact challenges expire after 5 minutes, permit 5 attempts, and are single-use; reissue limited to once per minute. Development challenge delivery is retrievable only by the owner and disabled outside local/test.
-- Device observation timestamps permit 30 seconds future skew and 7 days buffered history. Decisions use backend time, never event time. Confidence threshold 0.90. Older than 30 seconds or marked buffered -> evidence only; no gate command. Plate lookup alone cannot satisfy operator fallback: evidence reference and supervisor policy apply.
-- Gate open commands expire after 10 seconds. Claim once; lost/ambiguous acknowledgement requires operator review, never replay. Acknowledgement is not passage. Devices report physical passage explicitly with a stable passage identifier.
-- Transport replay key = device/source event ID plus canonical payload digest; changed payload is conflict. Multiple observations do not imply multiple passages. Pair unambiguous ordered alternating entry/exit evidence. Repeated entry, unmatched exit and missing exit are exceptions. Corrections append a record and retain raw evidence. Occupancy is an estimate.
-- Offline entitlement check failure defaults to manual process, no automatic admission. No offline entitlement cache. Hardware safety/emergency egress remain outside this software's authority.
+- Authority = tenant. External identity and local tenant membership/profile are separate. Staff memberships can be
+  facility-scoped. Platform administration cannot read tenant movement data without explicit, time-bound tenant support
+  grant.
+- One subscription per registered vehicle/facility; eligible approved vehicle and verified contact required for
+  purchase. No transfers. Unlimited eligible visits in purchased zones. Access fee only; taxes, parking, waiting,
+  premium lanes and overstay excluded unless explicitly published. No promised savings, physical queue improvements or
+  barrier-free admission.
+- Weekly = seven local calendar days; monthly/quarterly/yearly = 1/3/12 local calendar months. Java ZonedDateTime
+  resolves invalid month-end to last valid date, DST gaps forward and overlaps to earlier valid offset when calculating.
+  Store UTC instants. Start inclusive, end exclusive. Clock injected.
+- Payment acceptance time starts initial entitlement unless quoted future start is later. Renewal starts at the later of
+  accepted time, quoted start, or latest entitlement end. Serialize fulfillment on vehicle/facility subscription.
+  Future-start limit 90 days, quote validity 15 minutes. Payment already captured after quote expiry remains recoverable
+  and uses stored purchase terms.
+- Published plan versions and purchased snapshots never change. Retirement prevents new quotes. Existing orders remain
+  valid. Expiry after entry does not create a charge. Suspension requires reason and authorized staff; resumption is
+  explicit and history retained.
+- Refund maker/checker: finance officer requests, another finance officer approves. Reserve requested amounts against
+  payment to prevent concurrent over-refund. Entitlement is suspended only after successful provider refund
+  confirmation, for both partial and full refunds; this conservative treatment requires approval. Failed requests
+  release reservation. Ambiguous provider writes require lookup/reconciliation, never blind resubmission.
+- Local contact challenges expire after 5 minutes, permit 5 attempts, and are single-use; reissue limited to once per
+  minute. Development challenge delivery is retrievable only by the owner and disabled outside local/test.
+- Device observation timestamps permit 30 seconds future skew and 7 days buffered history. Decisions use backend time,
+  never event time. Confidence threshold 0.90. Older than 30 seconds or marked buffered -> evidence only; no gate
+  command. Plate lookup alone cannot satisfy operator fallback: evidence reference and supervisor policy apply.
+- Gate open commands expire after 10 seconds. Claim once; lost/ambiguous acknowledgement requires operator review, never
+  replay. Acknowledgement is not passage. Devices report physical passage explicitly with a stable passage identifier.
+- Transport replay key = device/source event ID plus canonical payload digest; changed payload is conflict. Multiple
+  observations do not imply multiple passages. Pair unambiguous ordered alternating entry/exit evidence. Repeated entry,
+  unmatched exit and missing exit are exceptions. Corrections append a record and retain raw evidence. Occupancy is an
+  estimate.
+- Offline entitlement check failure defaults to manual process, no automatic admission. No offline entitlement cache.
+  Hardware safety/emergency egress remain outside this software's authority.
 - Heartbeat older than 2 minutes means device unhealthy; it says nothing about physical lane state.
-- Retention defaults to unapproved (no destructive purge). A separate approval records days and actor; purge only eligible raw personal observation data after approved window, retaining correction/audit metadata and financial records pending statutory policy. Exports are authorized, scoped and audited.
+- Retention defaults to unapproved (no destructive purge). A separate approval records days and actor; purge only
+  eligible raw personal observation data after approved window, retaining correction/audit metadata and financial
+  records pending statutory policy. Exports are authorized, scoped and audited.

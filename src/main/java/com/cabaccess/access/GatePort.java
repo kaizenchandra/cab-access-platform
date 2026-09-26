@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 public interface GatePort {
-  record Command(UUID id,UUID tenant,UUID gate,Instant expiresAt){}
-  void dispatch(Command command);
+    void dispatch(Command command);
+
+    record Command(UUID id, UUID tenant, UUID gate, Instant expiresAt) {
+    }
 }

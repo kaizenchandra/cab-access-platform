@@ -1,40 +1,213 @@
 package com.cabaccess.operations;
 
-import com.cabaccess.identity.*;
-import com.cabaccess.shared.*;
+import com.cabaccess.identity.Actor;
+import com.cabaccess.identity.TenantTx;
+import com.cabaccess.shared.Db;
+import com.cabaccess.shared.Failure;
+import com.cabaccess.shared.Idempotency;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
-import java.time.*;
-import java.util.*;
-import org.springframework.http.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/v1/tenants/{t}")
 public class OperationsApi {
-  private final OperationsService service;private final TenantTx tx;private final Db db;private final Clock clock;private final Idempotency idem;
-  public OperationsApi(OperationsService service,TenantTx tx,Db db,Clock clock,Idempotency idem){this.service=service;this.tx=tx;this.db=db;this.clock=clock;this.idem=idem;}
-  public record CaseInput(@NotNull UUID facilityId,UUID paymentId,UUID visitId,@NotBlank @Size(max=2000) String description){}
-  public record Resolution(@NotBlank @Size(max=2000) String resolution){}
-  public record Retention(@Min(30) @Max(3650) int rawEventDays,@NotBlank @Size(max=500) String reason){}
-  public record Settlement(@NotBlank @Size(max=150) String providerReference,@Positive long amountMinor,@NotNull Instant settledAt,@NotBlank @Size(max=500) String source){}
-  @GetMapping("/reports/collections") Mono<Map<String,Object>> finance(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam UUID facilityId,@RequestParam Instant from,@RequestParam Instant to){var a=Actor.from(jwt);return tx.call(t,a,()->service.financial(t,a,facilityId,from,to));}
-  @GetMapping("/reports/operations") Mono<Map<String,Object>> operations(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam UUID facilityId){var a=Actor.from(jwt);return tx.call(t,a,()->service.operational(t,a,facilityId));}
-  @GetMapping("/reports/reconciliation") Mono<List<Map<String,Object>>> reconciliation(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam UUID facilityId,@RequestParam(defaultValue="0") int page){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,facilityId,"AUTHORITY_ADMIN","FINANCE_OFFICER");return db.list("select f.* from reconciliation_finding f join purchase_order o on o.id=f.order_id and o.tenant_id=f.tenant_id where o.facility_id=? order by f.created_at desc limit 100 offset ?",facilityId,Math.max(page,0)*100);});}
-  @GetMapping("/reports/settlements") Mono<List<Map<String,Object>>> settlements(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam(defaultValue="0") int page){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,null,"AUTHORITY_ADMIN","FINANCE_OFFICER");return db.list("select * from settlement_information order by settled_at desc limit 100 offset ?",Math.max(page,0)*100);});}
-  @PostMapping("/settlements") Mono<Map<String,Object>> settlement(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody Settlement x){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,null,"FINANCE_OFFICER");return idem.execute(t,a.subject(),"SETTLEMENT",key,x,()->{var authority=db.one("select * from authority where tenant_id=?",t);UUID id=UUID.randomUUID();db.update("insert into settlement_information(id,tenant_id,merchant_id,provider_reference,amount_minor,currency,settled_at,source) values(?,?,?,?,?,'INR',?,?)",id,t,Db.id(authority,"merchant_id"),x.providerReference(),x.amountMinor(),x.settledAt(),x.source());tx.audit(t,a,"SETTLEMENT_RECORDED",id,x.source());return Map.of("id",id,"source","FINANCE_RECORDED_PROVIDER_EVIDENCE");});});}
-  @GetMapping("/device-health") Mono<List<Map<String,Object>>> health(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam UUID facilityId,@RequestParam(defaultValue="0") int page){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,facilityId,"AUTHORITY_ADMIN","GATE_OPERATOR","GATE_SUPERVISOR");return db.list("select id,gate_id,name,active,last_heartbeat,case when last_heartbeat>? and active then 'HEALTHY' else 'UNHEALTHY' end as device_health,'UNKNOWN' as physical_lane_status from device where facility_id=? order by id limit 100 offset ?",clock.instant().minusSeconds(120),facilityId,Math.max(page,0)*100);});}
-  @PostMapping("/support-cases") Mono<Map<String,Object>> support(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestHeader("Idempotency-Key") String key,@Valid @RequestBody CaseInput x){var a=Actor.from(jwt);return tx.call(t,a,()->{Failure.require(x.paymentId()!=null||x.visitId()!=null,400,"LINKED_RESOURCE_REQUIRED");return idem.execute(t,a.subject(),"SUPPORT_CASE",key,x,()->service.support(t,a,x));});}
-  @GetMapping("/support-cases") Mono<List<Map<String,Object>>> cases(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam UUID facilityId,@RequestParam(defaultValue="0") int page){var a=Actor.from(jwt);return tx.call(t,a,()->{boolean own=tx.driver(t,a);if(!own)tx.permit(t,a,facilityId,"SUPPORT_AGENT","AUTHORITY_ADMIN");return db.list("select * from support_case where facility_id=? and (not ? or subject=?) order by created_at desc limit 100 offset ?",facilityId,own,a.subject(),Math.max(page,0)*100);});}
-  @PostMapping("/support-cases/{id}/resolve") Mono<Map<String,Object>> resolve(@PathVariable UUID t,@PathVariable UUID id,@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody Resolution x){var a=Actor.from(jwt);return tx.call(t,a,()->{var c=db.one("select * from support_case where id=?",id);tx.permit(t,a,Db.id(c,"facility_id"),"SUPPORT_AGENT","AUTHORITY_ADMIN");Failure.require(Db.str(c,"status").equals("OPEN"),409,"CASE_ALREADY_CLOSED");db.update("update support_case set status='RESOLVED',resolution=? where id=?",x.resolution(),id);tx.audit(t,a,"SUPPORT_CASE_RESOLVED",id,x.resolution());return Map.of("status","RESOLVED");});}
-  @GetMapping("/notifications") Mono<List<Map<String,Object>>> notifications(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam(defaultValue="0") int page){var a=Actor.from(jwt);return tx.call(t,a,()->{boolean own=tx.driver(t,a);if(!own)tx.permit(t,a,null,"AUTHORITY_ADMIN","SUPPORT_AGENT");return db.list("select n.*,o.attempts,o.last_error from notification n left join outbox o on o.resource_id=n.id and o.tenant_id=n.tenant_id and o.kind='NOTIFY' where (not ? or n.subject=?) order by n.created_at desc limit 100 offset ?",own,a.subject(),Math.max(page,0)*100);});}
-  @GetMapping("/audit") Mono<List<Map<String,Object>>> audit(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam(defaultValue="0") int page,@RequestParam(required=false) UUID resourceId){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,null,"AUTHORITY_ADMIN");return db.list("select * from audit_entry where (?::uuid is null or resource_id=?) order by created_at desc,id limit 100 offset ?",resourceId,resourceId,Math.max(page,0)*100);});}
-  @GetMapping("/exports/{kind}") Mono<ResponseEntity<List<Map<String,Object>>>> export(@PathVariable UUID t,@PathVariable String kind,@AuthenticationPrincipal Jwt jwt,@RequestParam UUID facilityId,@RequestParam(defaultValue="0") int page){var a=Actor.from(jwt);return tx.call(t,a,()->ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION,"attachment; filename="+kind+"-"+page+".json").body(service.export(t,a,facilityId,kind,page)));}
-  @PutMapping("/retention-policy") Mono<Map<String,Object>> retention(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody Retention x){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,null,"AUTHORITY_ADMIN");db.update("insert into retention_policy(id,tenant_id,raw_event_days,approved,approved_by,reason,updated_at) values(?,?,?,true,?,?,?) on conflict(tenant_id) do update set raw_event_days=excluded.raw_event_days,approved=true,approved_by=excluded.approved_by,reason=excluded.reason,updated_at=excluded.updated_at",UUID.randomUUID(),t,x.rawEventDays(),a.subject(),x.reason(),clock.instant());tx.audit(t,a,"RETENTION_APPROVED",t,x.reason());return Map.of("status","APPROVED","scope","RAW_OBSERVATION_PLATE_REDACTION_ONLY");});}
-  @PostMapping("/retention/redact") Mono<Map<String,Object>> redact(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestHeader("Idempotency-Key") String key){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,null,"AUTHORITY_ADMIN");return idem.execute(t,a.subject(),"REDACT",key,Map.of("tenant",t),()->{var p=db.one("select * from retention_policy where approved and tenant_id=?",t);int count=db.update("update raw_movement_event set plate=null where plate is not null and received_at<?",clock.instant().minus(Duration.ofDays(Db.num(p,"raw_event_days"))));tx.audit(t,a,"RETENTION_REDACTION",t,"Redacted "+count+" raw plates; linked/legal records retained");return Map.of("redacted",count);});});}
-  @GetMapping("/jobs") Mono<List<Map<String,Object>>> jobs(@PathVariable UUID t,@AuthenticationPrincipal Jwt jwt,@RequestParam(defaultValue="0") int page){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,null,"AUTHORITY_ADMIN");return db.list("select * from outbox order by available_at desc limit 100 offset ?",Math.max(page,0)*100);});}
-  @PostMapping("/jobs/{id}/retry") Mono<Map<String,Object>> retry(@PathVariable UUID t,@PathVariable UUID id,@AuthenticationPrincipal Jwt jwt){var a=Actor.from(jwt);return tx.call(t,a,()->{tx.permit(t,a,null,"AUTHORITY_ADMIN");var j=db.one("select * from outbox where id=? for update",id);Failure.require(!Db.str(j,"kind").equals("GATE"),409,"PHYSICAL_COMMAND_REPLAY_FORBIDDEN");Failure.require(Db.str(j,"state").equals("DEAD"),409,"JOB_NOT_DEAD");db.update("update outbox set state='READY',attempts=0,available_at=? where id=?",clock.instant(),id);tx.audit(t,a,"JOB_RETRY",id,"Authorized recovery");return Map.of("status","READY");});}
+    private final OperationsService service;
+    private final TenantTx tx;
+    private final Db db;
+    private final Clock clock;
+    private final Idempotency idem;
+
+    public OperationsApi(OperationsService service, TenantTx tx, Db db, Clock clock, Idempotency idem) {
+        this.service = service;
+        this.tx = tx;
+        this.db = db;
+        this.clock = clock;
+        this.idem = idem;
+    }
+
+    @GetMapping("/reports/collections")
+    Mono<Map<String, Object>> finance(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam UUID facilityId, @RequestParam Instant from, @RequestParam Instant to) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> service.financial(t, a, facilityId, from, to));
+    }
+
+    @GetMapping("/reports/operations")
+    Mono<Map<String, Object>> operations(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam UUID facilityId) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> service.operational(t, a, facilityId));
+    }
+
+    @GetMapping("/reports/reconciliation")
+    Mono<List<Map<String, Object>>> reconciliation(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam UUID facilityId, @RequestParam(defaultValue = "0") int page) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, facilityId, "AUTHORITY_ADMIN", "FINANCE_OFFICER");
+            return db.list("select f.* from reconciliation_finding f join purchase_order o on o.id=f.order_id and o.tenant_id=f.tenant_id where o.facility_id=? order by f.created_at desc limit 100 offset ?", facilityId, Math.max(page, 0) * 100);
+        });
+    }
+
+    @GetMapping("/reports/settlements")
+    Mono<List<Map<String, Object>>> settlements(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "0") int page) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, null, "AUTHORITY_ADMIN", "FINANCE_OFFICER");
+            return db.list("select * from settlement_information order by settled_at desc limit 100 offset ?", Math.max(page, 0) * 100);
+        });
+    }
+
+    @PostMapping("/settlements")
+    Mono<Map<String, Object>> settlement(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestHeader("Idempotency-Key") String key, @Valid @RequestBody Settlement x) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, null, "FINANCE_OFFICER");
+            return idem.execute(t, a.subject(), "SETTLEMENT", key, x, () -> {
+                var authority = db.one("select * from authority where tenant_id=?", t);
+                UUID id = UUID.randomUUID();
+                db.update("insert into settlement_information(id,tenant_id,merchant_id,provider_reference,amount_minor,currency,settled_at,source) values(?,?,?,?,?,'INR',?,?)", id, t, Db.id(authority, "merchant_id"), x.providerReference(), x.amountMinor(), x.settledAt(), x.source());
+                tx.audit(t, a, "SETTLEMENT_RECORDED", id, x.source());
+                return Map.of("id", id, "source", "FINANCE_RECORDED_PROVIDER_EVIDENCE");
+            });
+        });
+    }
+
+    @GetMapping("/device-health")
+    Mono<List<Map<String, Object>>> health(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam UUID facilityId, @RequestParam(defaultValue = "0") int page) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, facilityId, "AUTHORITY_ADMIN", "GATE_OPERATOR", "GATE_SUPERVISOR");
+            return db.list("select id,gate_id,name,active,last_heartbeat,case when last_heartbeat>? and active then 'HEALTHY' else 'UNHEALTHY' end as device_health,'UNKNOWN' as physical_lane_status from device where facility_id=? order by id limit 100 offset ?", clock.instant().minusSeconds(120), facilityId, Math.max(page, 0) * 100);
+        });
+    }
+
+    @PostMapping("/support-cases")
+    Mono<Map<String, Object>> support(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestHeader("Idempotency-Key") String key, @Valid @RequestBody CaseInput x) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            Failure.require(x.paymentId() != null || x.visitId() != null, 400, "LINKED_RESOURCE_REQUIRED");
+            return idem.execute(t, a.subject(), "SUPPORT_CASE", key, x, () -> service.support(t, a, x));
+        });
+    }
+
+    @GetMapping("/support-cases")
+    Mono<List<Map<String, Object>>> cases(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam UUID facilityId, @RequestParam(defaultValue = "0") int page) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            boolean own = tx.driver(t, a);
+            if (!own) tx.permit(t, a, facilityId, "SUPPORT_AGENT", "AUTHORITY_ADMIN");
+            return db.list("select * from support_case where facility_id=? and (not ? or subject=?) order by created_at desc limit 100 offset ?", facilityId, own, a.subject(), Math.max(page, 0) * 100);
+        });
+    }
+
+    @PostMapping("/support-cases/{id}/resolve")
+    Mono<Map<String, Object>> resolve(@PathVariable UUID t, @PathVariable UUID id, @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Resolution x) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            var c = db.one("select * from support_case where id=?", id);
+            tx.permit(t, a, Db.id(c, "facility_id"), "SUPPORT_AGENT", "AUTHORITY_ADMIN");
+            Failure.require(Db.str(c, "status").equals("OPEN"), 409, "CASE_ALREADY_CLOSED");
+            db.update("update support_case set status='RESOLVED',resolution=? where id=?", x.resolution(), id);
+            tx.audit(t, a, "SUPPORT_CASE_RESOLVED", id, x.resolution());
+            return Map.of("status", "RESOLVED");
+        });
+    }
+
+    @GetMapping("/notifications")
+    Mono<List<Map<String, Object>>> notifications(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "0") int page) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            boolean own = tx.driver(t, a);
+            if (!own) tx.permit(t, a, null, "AUTHORITY_ADMIN", "SUPPORT_AGENT");
+            return db.list("select n.*,o.attempts,o.last_error from notification n left join outbox o on o.resource_id=n.id and o.tenant_id=n.tenant_id and o.kind='NOTIFY' where (not ? or n.subject=?) order by n.created_at desc limit 100 offset ?", own, a.subject(), Math.max(page, 0) * 100);
+        });
+    }
+
+    @GetMapping("/audit")
+    Mono<List<Map<String, Object>>> audit(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "0") int page, @RequestParam(required = false) UUID resourceId) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, null, "AUTHORITY_ADMIN");
+            return db.list("select * from audit_entry where (?::uuid is null or resource_id=?) order by created_at desc,id limit 100 offset ?", resourceId, resourceId, Math.max(page, 0) * 100);
+        });
+    }
+
+    @GetMapping("/exports/{kind}")
+    Mono<ResponseEntity<List<Map<String, Object>>>> export(@PathVariable UUID t, @PathVariable String kind, @AuthenticationPrincipal Jwt jwt, @RequestParam UUID facilityId, @RequestParam(defaultValue = "0") int page) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + kind + "-" + page + ".json").body(service.export(t, a, facilityId, kind, page)));
+    }
+
+    @PutMapping("/retention-policy")
+    Mono<Map<String, Object>> retention(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Retention x) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, null, "AUTHORITY_ADMIN");
+            db.update("insert into retention_policy(id,tenant_id,raw_event_days,approved,approved_by,reason,updated_at) values(?,?,?,true,?,?,?) on conflict(tenant_id) do update set raw_event_days=excluded.raw_event_days,approved=true,approved_by=excluded.approved_by,reason=excluded.reason,updated_at=excluded.updated_at", UUID.randomUUID(), t, x.rawEventDays(), a.subject(), x.reason(), clock.instant());
+            tx.audit(t, a, "RETENTION_APPROVED", t, x.reason());
+            return Map.of("status", "APPROVED", "scope", "RAW_OBSERVATION_PLATE_REDACTION_ONLY");
+        });
+    }
+
+    @PostMapping("/retention/redact")
+    Mono<Map<String, Object>> redact(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestHeader("Idempotency-Key") String key) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, null, "AUTHORITY_ADMIN");
+            return idem.execute(t, a.subject(), "REDACT", key, Map.of("tenant", t), () -> {
+                var p = db.one("select * from retention_policy where approved and tenant_id=?", t);
+                int count = db.update("update raw_movement_event set plate=null where plate is not null and received_at<?", clock.instant().minus(Duration.ofDays(Db.num(p, "raw_event_days"))));
+                tx.audit(t, a, "RETENTION_REDACTION", t, "Redacted " + count + " raw plates; linked/legal records retained");
+                return Map.of("redacted", count);
+            });
+        });
+    }
+
+    @GetMapping("/jobs")
+    Mono<List<Map<String, Object>>> jobs(@PathVariable UUID t, @AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "0") int page) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, null, "AUTHORITY_ADMIN");
+            return db.list("select * from outbox order by available_at desc limit 100 offset ?", Math.max(page, 0) * 100);
+        });
+    }
+
+    @PostMapping("/jobs/{id}/retry")
+    Mono<Map<String, Object>> retry(@PathVariable UUID t, @PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        var a = Actor.from(jwt);
+        return tx.call(t, a, () -> {
+            tx.permit(t, a, null, "AUTHORITY_ADMIN");
+            var j = db.one("select * from outbox where id=? for update", id);
+            Failure.require(!Db.str(j, "kind").equals("GATE"), 409, "PHYSICAL_COMMAND_REPLAY_FORBIDDEN");
+            Failure.require(Db.str(j, "state").equals("DEAD"), 409, "JOB_NOT_DEAD");
+            db.update("update outbox set state='READY',attempts=0,available_at=? where id=?", clock.instant(), id);
+            tx.audit(t, a, "JOB_RETRY", id, "Authorized recovery");
+            return Map.of("status", "READY");
+        });
+    }
+
+    public record CaseInput(@NotNull UUID facilityId, UUID paymentId, UUID visitId,
+                            @NotBlank @Size(max = 2000) String description) {
+    }
+
+    public record Resolution(@NotBlank @Size(max = 2000) String resolution) {
+    }
+
+    public record Retention(@Min(30) @Max(3650) int rawEventDays, @NotBlank @Size(max = 500) String reason) {
+    }
+
+    public record Settlement(@NotBlank @Size(max = 150) String providerReference, @Positive long amountMinor,
+                             @NotNull Instant settledAt, @NotBlank @Size(max = 500) String source) {
+    }
 }

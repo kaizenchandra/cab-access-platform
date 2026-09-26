@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: { { .Release.Name } }
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: { { .Values.replicaCount } }
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: { { .Release.Name } }
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
+        app: { { .Release.Name } }
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 35
@@ -24,24 +24,24 @@ spec:
       containers:
         - name: api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: { { .Values.image.pullPolicy } }
           ports:
             - containerPort: 8080
           envFrom:
             - secretRef:
-                name: {{ .Values.existingSecret }}
+                name: { { .Values.existingSecret } }
           env:
-            {{- range $key, $value := .Values.config }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            { { - range $key, $value := .Values.config } }
+            - name: { { $key } }
+              value: { { $value | quote } }
+            { { - end } }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
-              drop: ["ALL"]
+              drop: [ "ALL" ]
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            { { - toYaml .Values.resources | nindent 12 } }
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -63,20 +63,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}
+  name: { { .Release.Name } }
 spec:
   selector:
-    app: {{ .Release.Name }}
+    app: { { .Release.Name } }
   ports:
-    - port: {{ .Values.service.port }}
+    - port: { { .Values.service.port } }
       targetPort: 8080
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ .Release.Name }}
+  name: { { .Release.Name } }
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      app: { { .Release.Name } }

@@ -4,29 +4,29 @@ services:
     image: postgres:17.6-alpine
     environment:
       POSTGRES_PASSWORD: local-bootstrap-only
-    ports: ["127.0.0.1:5432:5432"]
+    ports: [ "127.0.0.1:5432:5432" ]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 3s
       retries: 20
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.4
-    command: ["start-dev", "--import-realm"]
+    command: [ "start-dev", "--import-realm" ]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: local-admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: local-admin-only
       KC_HOSTNAME: http://localhost:8180
-    ports: ["127.0.0.1:8180:8080"]
+    ports: [ "127.0.0.1:8180:8080" ]
     volumes:
       - ./infra/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
   api:
     build: .
-    profiles: ["app"]
-    ports: ["127.0.0.1:8080:8080"]
+    profiles: [ "app" ]
+    ports: [ "127.0.0.1:8080:8080" ]
     environment:
       SPRING_PROFILES_ACTIVE: local
       DATABASE_URL: jdbc:postgresql://postgres:5432/cabaccess

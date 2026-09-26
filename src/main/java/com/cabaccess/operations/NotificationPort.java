@@ -1,8 +1,11 @@
 package com.cabaccess.operations;
 
-import java.util.*;
+import java.util.Map;
+import java.util.UUID;
 
 public interface NotificationPort {
-  record Message(UUID id,String recipient,String kind,Map<String,Object> details){}
-  String deliver(Message message);
+    String deliver(Message message);
+
+    record Message(UUID id, String recipient, String kind, Map<String, Object> details) {
+    }
 }

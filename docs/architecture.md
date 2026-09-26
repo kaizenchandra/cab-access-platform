@@ -1,6 +1,7 @@
 # Architecture and contracts
 
 ## Components
+
 ```mermaid
 flowchart LR
   Driver[Driver client] --> API[WebFlux API]
@@ -15,9 +16,13 @@ flowchart LR
   Worker --> Gate[Gate command port]
 ```
 
-Capabilities are Java packages: identity, authority, driver, plan, billing, access, movement, operations; shared contains only persistence/error/cryptographic infrastructure. Public service methods form module interfaces. No module sends provider traffic while holding a database transaction. JPA handles immutable plan versions; JDBC handles explicit constraints, reports and locks under the same transaction manager.
+Capabilities are Java packages: identity, authority, driver, plan, billing, access, movement, operations; shared
+contains only persistence/error/cryptographic infrastructure. Public service methods form module interfaces. No module
+sends provider traffic while holding a database transaction. JPA handles immutable plan versions; JDBC handles explicit
+constraints, reports and locks under the same transaction manager.
 
 ## Relational model
+
 ```mermaid
 erDiagram
   AUTHORITY ||--o{ FACILITY : operates
@@ -43,9 +48,13 @@ erDiagram
   PASSAGE_EVIDENCE ||--o| VISIT : matched
   VISIT ||--o{ VISIT_CORRECTION : append_only
 ```
-Every tenant aggregate has a composite `(tenant_id,id)` key; cross-aggregate references include tenant. Database tables are in Flyway migration V1. Raw observations and passages remain separate. Visits are rebuildable projections; corrections are append-only and exposed as effective exit timestamps.
+
+Every tenant aggregate has a composite `(tenant_id,id)` key; cross-aggregate references include tenant. Database tables
+are in Flyway migration V1. Raw observations and passages remain separate. Visits are rebuildable projections;
+corrections are append-only and exposed as effective exit timestamps.
 
 ## Purchase and recovery
+
 ```mermaid
 sequenceDiagram
   participant D as Driver
@@ -67,6 +76,7 @@ sequenceDiagram
 ```
 
 ## Gate access
+
 ```mermaid
 sequenceDiagram
   participant D as Device
@@ -87,6 +97,7 @@ sequenceDiagram
 ```
 
 ## Event recovery
+
 ```mermaid
 sequenceDiagram
   participant D as Buffered device
@@ -104,6 +115,7 @@ sequenceDiagram
 ```
 
 ## Refunds
+
 ```mermaid
 sequenceDiagram
   participant F as Finance maker
@@ -125,14 +137,29 @@ sequenceDiagram
 ```
 
 ## State transitions
-- Order: CREATED → REVIEW during provider creation → PENDING → CONFIRMED → FULFILLED. REVIEW requires receipt lookup or finance reconciliation.
-- Payment: captured records are final, independently retained; late authorized/failed events never downgrade capture. Extra captures create a reconciliation finding without another entitlement.
+
+- Order: CREATED → REVIEW during provider creation → PENDING → CONFIRMED → FULFILLED. REVIEW requires receipt lookup or
+  finance reconciliation.
+- Payment: captured records are final, independently retained; late authorized/failed events never downgrade capture.
+  Extra captures create a reconciliation finding without another entitlement.
 - Entitlement: derived SCHEDULED / ACTIVE / EXPIRED, with separate subscription suspension and historical periods.
-- Refund: REQUESTED → APPROVED → REVIEW → PENDING / PROCESSED / FAILED. Request reserves balance; provider processed confirmation determines success. Maker cannot approve own request.
-- Command: PENDING → DISPATCHED → ACKNOWLEDGED / FAILED; PENDING expiry → EXPIRED, unacknowledged dispatched expiry → UNKNOWN. No automatic replay from terminal/ambiguous states.
-- Outbox: READY → LEASED → DONE; failed lease processing → delayed READY, fifth failure → DEAD. Expired leases recover. Inbox keys guard consumer completion.
+- Refund: REQUESTED → APPROVED → REVIEW → PENDING / PROCESSED / FAILED. Request reserves balance; provider processed
+  confirmation determines success. Maker cannot approve own request.
+- Command: PENDING → DISPATCHED → ACKNOWLEDGED / FAILED; PENDING expiry → EXPIRED, unacknowledged dispatched expiry →
+  UNKNOWN. No automatic replay from terminal/ambiguous states.
+- Outbox: READY → LEASED → DONE; failed lease processing → delayed READY, fifth failure → DEAD. Expired leases recover.
+  Inbox keys guard consumer completion.
 
 ## API conventions
-Version prefix `/api/v1`; tenant resources `/tenants/{tenantId}`. OIDC bearer token required except explicitly authenticated provider/device boundaries and minimal health. JSON snake_case database response fields, camelCase request DTO fields. DTO schemas and endpoints generated at `/v3/api-docs`, Swagger UI `/swagger-ui.html` (authenticated). ProblemDetail errors have stable `code`, HTTP status and no SQL/secret detail. List page default 0, capped page sizes; reports require facility and bounded time range. Financial amounts are integer minor units with currency, never binary floats.
 
-Idempotency keys are required for purchase, refund, reconciliation, fallback, override, support case, settlement, corrections and retention redaction. Scope = tenant + actor + operation; mismatched payload is 409. Exact provider/device transport retransmissions use trusted source identifiers and payload digests. A new device observation ID is not a transport duplicate.
+Version prefix `/api/v1`; tenant resources `/tenants/{tenantId}`. OIDC bearer token required except explicitly
+authenticated provider/device boundaries and minimal health. JSON snake_case database response fields, camelCase request
+DTO fields. DTO schemas and endpoints generated at `/v3/api-docs`, Swagger UI `/swagger-ui.html` (authenticated).
+ProblemDetail errors have stable `code`, HTTP status and no SQL/secret detail. List page default 0, capped page sizes;
+reports require facility and bounded time range. Financial amounts are integer minor units with currency, never binary
+floats.
+
+Idempotency keys are required for purchase, refund, reconciliation, fallback, override, support case, settlement,
+corrections and retention redaction. Scope = tenant + actor + operation; mismatched payload is 409. Exact
+provider/device transport retransmissions use trusted source identifiers and payload digests. A new device observation
+ID is not a transport duplicate.
